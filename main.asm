@@ -5,61 +5,75 @@ GFX_WIDTH   EQU 10
 GFX_HEIGHT  EQU 12
 GFX_OFFSET  EQU 5 + (3 * MAP_WIDTH)
 
-SECTION "VBlank", ROM0[$40]
+SECTION "VBlankVector", ROM0[$40]
     jp VBlankHandler
+
+SECTION "StatVector", ROM0[$48]
+    jp HBlankHandler
 
 SECTION "Header", ROM0[$100]
     jp Start
 
 SECTION "Code", ROM0[$150]
 Start:
-    di                  ; Disable interrupts
+    di                          ; Disable interrupts
 
-    call WaitVBlank     ; Turn off LCD
+    call WaitVBlank             ; Turn off LCD
     ld hl, rLCDC
     res 7, [hl]
 
-    ld a, IEF_VBLANK    ; Set v-blank interrupt handler
+    ld a, IEF_VBLANK | IEF_LCDC ; Enable v-blank and status interrupts
     ld [rIE], a
+    ld a, STATF_MODE00          ; Set h-blank to cause a status interrupt
+    ld [rSTAT], a
 
-    ld hl, Tiles        ; Copy tiles to VRAM
+    ld hl, Tiles                ; Copy tiles to VRAM
     ld bc, _VRAM
     ld a, GFX_WIDTH * GFX_HEIGHT
     call DMACopy
 
-    call SetupTileMap   ; Set up the image centered
+    call SetupTileMap           ; Set up the image centered
 
-    ld a, $0            ; Reset offset counter
-    ld [Offset], a
+    ld a, $0                    ; Reset offset counters
+    ld [VBlankOffset], a
+    ld [HBlankOffset], a
 
-    ld hl, rLCDC        ; Turn on LCD
+    ld hl, rLCDC                ; Turn on LCD
     set 7, [hl]
 
-    ei                  ; Enable interrupts
+    ei                          ; Enable interrupts
 
 Loop:
     jr Loop
 
-VBlankHandler:
-    ld a, BCPSF_AUTOINC ; Set first palette index with auto increment
+HBlankHandler:
+    ld a, BCPSF_AUTOINC         ; Set first palette index with auto increment
     ld [rBCPS], a
 
-    ld hl, Gradient     ; Calculate address to gradient color
-    ld a, [Offset]
+    ld hl, Gradient             ; Calculate address to gradient color
+    ld a, [HBlankOffset]
     ld b, $0
     ld c, a
     add hl, bc
 
-    ld a, [hl+]         ; Update first two-byte palette color
+    ld a, [hl+]                 ; Update first two-byte palette color
     ld [rBCPD], a
     ld a, [hl]
     ld [rBCPD], a
 
-    ld a, [Offset]      ; Increment offset to next two-byte color
+    ld a, [HBlankOffset]        ; Increment offset to next two-byte color
     add a, $2
     and a, $7F
-    ld [Offset], a
+    ld [HBlankOffset], a
 
+    reti
+
+VBlankHandler:
+    ld a, [VBlankOffset]        ; Increment v-blank offset
+    add a, $2
+    and a, $7F
+    ld [VBlankOffset], a
+    ld [HBlankOffset], a        ; Start next h-blank offset from v-blank offset
     reti
 
 SetupTileMap:
@@ -124,4 +138,5 @@ Tiles:
     INCBIN "r.2bpp"
 
 SECTION "Variables", WRAM0[$C000]
-Offset: DS 1
+HBlankOffset:   DS 1
+VBlankOffset:   DS 1
