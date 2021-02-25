@@ -1,9 +1,10 @@
 INCLUDE "hardware.inc"
 
-MAP_WIDTH   EQU 32
-GFX_WIDTH   EQU 10
-GFX_HEIGHT  EQU 12
-GFX_OFFSET  EQU 5 + (3 * MAP_WIDTH)
+MAP_WIDTH       EQU 32
+GFX_WIDTH       EQU 10
+GFX_HEIGHT      EQU 12
+GFX_OFFSET      EQU 5 + (3 * MAP_WIDTH)
+GRADIENT_SIZE   EQU 64
 
 SECTION "VBlankVector", ROM0[$40]
     jp VBlankHandler
@@ -52,6 +53,7 @@ HBlankHandler:
 
     ld hl, Gradient             ; Calculate address to gradient color
     ld a, [HBlankOffset]
+    rla
     ld b, $0
     ld c, a
     add hl, bc
@@ -62,16 +64,16 @@ HBlankHandler:
     ld [rBCPD], a
 
     ld a, [HBlankOffset]        ; Increment offset to next two-byte color
-    add a, $2
-    and a, $7F
+    inc a
+    and a, (GRADIENT_SIZE - 1)
     ld [HBlankOffset], a
 
     reti
 
 VBlankHandler:
     ld a, [VBlankOffset]        ; Increment v-blank offset
-    add a, $2
-    and a, $7F
+    dec a
+    and a, (GRADIENT_SIZE - 1)
     ld [VBlankOffset], a
     ld [HBlankOffset], a        ; Start next h-blank offset from v-blank offset
     reti
@@ -105,33 +107,24 @@ WaitVBlank:
 ; bc = Target address
 ; a = Number of 16 byte blocks to copy
 DMACopy:
-    ld d, a         ; Save a
+    ld d, a                     ; Save a
 
-    ld a, h         ; Set source
+    ld a, h                     ; Set source
     ld [rHDMA1], a
     ld a, l
     ld [rHDMA2], a
 
-    ld a, b         ; Set target
+    ld a, b                     ; Set target
     ld [rHDMA3], a
     ld a, c
     ld [rHDMA4], a
 
-    ld a, d         ; Start general purpose DMA transfer
+    ld a, d                     ; Start general purpose DMA transfer
     ld [rHDMA5], a
     ret
 
 Gradient:
-COL SET 0
-    REPT 31
-    DW (COL << 10) | (COL << 5) | COL
-COL SET COL + 1
-    ENDR
-    REPT 32
-    DW (COL << 10) | (COL << 5) | COL
-COL SET COL - 1
-    ENDR
-    DW $0
+INCLUDE "gradient.inc"
 
 SECTION "Tiles", ROM0, ALIGN[4]
 Tiles:
