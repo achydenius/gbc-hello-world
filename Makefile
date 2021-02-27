@@ -6,13 +6,13 @@ fix: build
 build: main.o
 	rgblink -o main.gb main.o
 
-main.o: main.asm r.2bpp gradient.inc
+main.o: main.asm monoglyph.2bpp gradient.inc
 	rgbasm -o main.o main.asm
 
-r.2bpp: r.png
-	rgbgfx -v -o r.2bpp r.png
+monoglyph.2bpp: monoglyph.png
+	rgbgfx -v -o monoglyph.2bpp monoglyph.png
 
-gradient.inc:
+gradient.inc: create-gradient.py
 	./create-gradient.py > gradient.inc
 
 clean:

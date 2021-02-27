@@ -48,22 +48,25 @@ Loop:
     jr Loop
 
 HBlankHandler:
-    ld a, BCPSF_AUTOINC         ; Set first palette index with auto increment
-    ld [rBCPS], a
-
     ld hl, Gradient             ; Calculate address to gradient color
-    ld a, [HBlankOffset]
+    ld a, [HBlankOffset]        ; Address is offset times six (two-byte colors in groups of three)
     rla
     ld b, $0
     ld c, a
     add hl, bc
+    add hl, bc
+    add hl, bc
 
-    ld a, [hl+]                 ; Update first two-byte palette color
+    ld a, BCPSF_AUTOINC         ; Set first palette index with auto increment
+    ld [rBCPS], a
+    ld b, $6
+.update:
+    ld a, [hl+]                 ; Update palette byte by byte
     ld [rBCPD], a
-    ld a, [hl]
-    ld [rBCPD], a
+    dec b
+    jp nz, .update
 
-    ld a, [HBlankOffset]        ; Increment offset to next two-byte color
+    ld a, [HBlankOffset]        ; Increment h-blank offset
     inc a
     and a, (GRADIENT_SIZE - 1)
     ld [HBlankOffset], a
@@ -128,7 +131,7 @@ INCLUDE "gradient.inc"
 
 SECTION "Tiles", ROM0, ALIGN[4]
 Tiles:
-    INCBIN "r.2bpp"
+    INCBIN "monoglyph.2bpp"
 
 SECTION "Variables", WRAM0[$C000]
 HBlankOffset:   DS 1
