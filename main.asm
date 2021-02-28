@@ -4,7 +4,8 @@ MAP_WIDTH       EQU 32
 GFX_WIDTH       EQU 10
 GFX_HEIGHT      EQU 12
 GFX_OFFSET      EQU 5 + (3 * MAP_WIDTH)
-GRADIENT_SIZE   EQU 64
+GRADIENT_STEPS  EQU 64
+SINE_STEPS      EQU 256
 
 SECTION "VBlankVector", ROM0[$40]
     jp VBlankHandler
@@ -35,12 +36,17 @@ Start:
 
     call SetupTileMap           ; Set up the image centered
 
-    ld a, $0                    ; Reset offset counters
-    ld [VBlankOffset], a
-    ld [HBlankOffset], a
+    ld a, $0                    ; Reset variables
+    REPT 4
+    ld [Variables], a
+    ENDR
 
     ld hl, rLCDC                ; Turn on LCD
     set 7, [hl]
+
+    ld a, KEY1F_PREPARE         ; Set CPU double speed mode
+    ld [rKEY1], a
+    stop
 
     ei                          ; Enable interrupts
 
@@ -49,7 +55,7 @@ Loop:
 
 HBlankHandler:
     ld hl, Gradient             ; Calculate address to gradient color
-    ld a, [HBlankOffset]        ; Address is offset times six (two-byte colors in groups of three)
+    ld a, [HBColorOffset]       ; Address is offset times six (two-byte colors in groups of three)
     rla
     ld b, $0
     ld c, a
@@ -59,26 +65,41 @@ HBlankHandler:
 
     ld a, BCPSF_AUTOINC         ; Set first palette index with auto increment
     ld [rBCPS], a
-    ld b, $6
-.update:
+    REPT 6
     ld a, [hl+]                 ; Update palette byte by byte
     ld [rBCPD], a
-    dec b
-    jp nz, .update
+    ENDR
 
-    ld a, [HBlankOffset]        ; Increment h-blank offset
+    ld a, [HBColorOffset]       ; Increment color hblank offset
     inc a
-    and a, (GRADIENT_SIZE - 1)
-    ld [HBlankOffset], a
+    and a, (GRADIENT_STEPS- 1)
+    ld [HBColorOffset], a
+
+    ld a, [HBSineOffset]        ; Calculate address to sine table
+    ld b, $0
+    ld c, a
+    ld hl, Sine
+    add hl, bc
+    ld a, [hl]
+    ld [rSCX], a
+
+    ld a, [HBSineOffset]        ; Increment sine hblank offset
+    inc a
+    and a, (SINE_STEPS-1)
+    ld [HBSineOffset], a
 
     reti
 
 VBlankHandler:
-    ld a, [VBlankOffset]        ; Increment v-blank offset
-    dec a
-    and a, (GRADIENT_SIZE - 1)
-    ld [VBlankOffset], a
-    ld [HBlankOffset], a        ; Start next h-blank offset from v-blank offset
+    ld a, [VBColorOffset]       ; Increment color vblank offset and
+    dec a                       ; start color hblank offset from vblank offset
+    ld [VBColorOffset], a
+    ld [HBColorOffset], a
+
+    ld a, [VBSineOffset]        ; Incremetn sine vblank offset and
+    inc a                       ; start sine hblank offset from vblank offset
+    ld [VBSineOffset], a
+    ld [HBSineOffset], a
     reti
 
 SetupTileMap:
@@ -126,13 +147,23 @@ DMACopy:
     ld [rHDMA5], a
     ret
 
-Gradient:
-INCLUDE "gradient.inc"
-
-SECTION "Tiles", ROM0, ALIGN[4]
+SECTION "Data", ROM0, ALIGN[4]
 Tiles:
     INCBIN "monoglyph.2bpp"
 
+Gradient:
+    INCLUDE "gradient.inc"
+
+Sine:
+ANGLE = 0.0
+    REPT 256
+    DB (MUL(32.0, SIN(ANGLE)) + 1.0) >> 16
+ANGLE = ANGLE + 256.0
+    ENDR
+
 SECTION "Variables", WRAM0[$C000]
-HBlankOffset:   DS 1
-VBlankOffset:   DS 1
+Variables:
+HBColorOffset:  DS 1
+VBColorOffset:  DS 1
+VBSineOffset:   DS 1
+HBSineOffset:   DS 1
