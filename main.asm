@@ -37,8 +37,9 @@ Start:
     call SetupTileMap           ; Set up the image centered
 
     ld a, $0                    ; Reset variables
-    REPT 4
-    ld [Variables], a
+    ld hl, Variables
+    REPT 6
+    ld [hl+], a
     ENDR
 
     ld hl, rLCDC                ; Turn on LCD
@@ -51,9 +52,34 @@ Start:
     ei                          ; Enable interrupts
 
 Loop:
+    ld a, ~P1F_5                ; Read button states
+    ld [rP1], a
+    ld a, [rP1]
+    cpl                         ; A set bit 0 indicates pressed A button
+    and a, $1
+
+    ld b, a                     ; Compare current and previous button states
+    ld a, [ButtonState]
+    cp a, b
+
+    ld a, b                     ; Update button state variable
+    ld [ButtonState], a
+
+    jr z, Loop                  ; Continue if current and previous states are equal
+    cp a, $0                    ; Continue if current state is button press
+    jp z, Loop
+
+    ld a, [EffectOn]            ; Toggle effect state variable
+    xor a, $1
+    ld [EffectOn], a
+    ld a, $0                    ; Reset horizontal scroll register
+    ld [rSCX], a
     jr Loop
 
 HBlankHandler:
+    push af
+    push bc
+
     ld hl, Gradient             ; Calculate address to gradient color
     ld a, [HBColorOffset]       ; Address is offset times six (two-byte colors in groups of three)
     rla
@@ -75,6 +101,10 @@ HBlankHandler:
     and a, (GRADIENT_STEPS- 1)
     ld [HBColorOffset], a
 
+    ld a, [EffectOn]            ; Apply sine effect only if effect variable is toggled
+    cp a, $0
+    jr z, .return
+
     ld a, [HBSineOffset]        ; Calculate address to sine table
     ld b, $0
     ld c, a
@@ -83,23 +113,32 @@ HBlankHandler:
     ld a, [hl]
     ld [rSCX], a
 
+.return:
     ld a, [HBSineOffset]        ; Increment sine hblank offset
     inc a
     and a, (SINE_STEPS-1)
     ld [HBSineOffset], a
 
+    pop bc
+    pop af
     reti
 
 VBlankHandler:
+    push af
+    push bc
+
     ld a, [VBColorOffset]       ; Increment color vblank offset and
     dec a                       ; start color hblank offset from vblank offset
     ld [VBColorOffset], a
     ld [HBColorOffset], a
 
-    ld a, [VBSineOffset]        ; Incremetn sine vblank offset and
+    ld a, [VBSineOffset]        ; Increment sine vblank offset and
     inc a                       ; start sine hblank offset from vblank offset
     ld [VBSineOffset], a
     ld [HBSineOffset], a
+
+    pop bc
+    pop af
     reti
 
 SetupTileMap:
@@ -167,3 +206,5 @@ HBColorOffset:  DS 1
 VBColorOffset:  DS 1
 VBSineOffset:   DS 1
 HBSineOffset:   DS 1
+ButtonState:    DS 1
+EffectOn:       DS 1
