@@ -39,52 +39,22 @@ Start:
     ld a, 32
     call DMACopy
 
-    xor a, a                        ; Reset variables
-    ld hl, Variables
-    ld b, 6
-.resetVariable:
-    ld [hl+], a
-    dec b
-    jr nz, .resetVariable
+    xor a, $0                       ; Reset offset variables
+    ld [HBlankOffset], a
+    ld [HBlankOffset + 1], a
 
     ld hl, rLCDC                    ; Turn on LCD
     set LCDCF_ON_BIT, [hl]
 
-    ld a, KEY1F_PREPARE             ; Set CPU double speed mode
-    ld [rKEY1], a
-    stop
-
     ei                              ; Enable interrupts
 
 Loop:
-    ld a, ~P1F_5                    ; Read button states
-    ld [rP1], a
-    ld a, [rP1]
-    cpl                             ; Complement bits so that set bit indicates a pressed button
-    and a, $1                       ; Ignore others than A button
-
-    ld hl, ButtonState              ; Compare previous and current button state and update the variable
-    cp a, [hl]
-    ld [hl], a
-
-    jr z, Loop                      ; If current and previous state were equal, do nothing
-    cp a, $0                        ; If current state is button press, do nothing
-    jr z, Loop
-
-    ld a, [EffectOn]                ; Toggle effect state variable
-    xor a, $1
-    ld [EffectOn], a
-
-    xor a, a                        ; Reset horizontal scroll register
-    ld [rSCX], a
+    halt                            ; Wait until next interrupt
     jr Loop
 
 HBlankHandler:
-    push af
-    push hl
-
     ld hl, Gradient                 ; Calculate address to gradient color
-    ld a, [HBColorOffset]           ; Address is offset times six (two-byte colors in groups of three)
+    ld a, [HBlankOffset]            ; Address is offset times six (two-byte colors in groups of three)
     rla
     ld b, $0
     ld c, a
@@ -99,47 +69,18 @@ HBlankHandler:
     ld [rBCPD], a
     ENDR
 
-    ld a, [HBColorOffset]           ; Increment color hblank offset
+    ld a, [HBlankOffset]            ; Increment color hblank offset
     inc a
     and a, (GRADIENT_STEPS - 1)
-    ld [HBColorOffset], a
+    ld [HBlankOffset], a
 
-    ld a, [EffectOn]                ; Apply sine effect only if effect variable is toggled
-    cp a, $0
-    jr z, .return
-
-    ld a, [HBSineOffset]            ; Calculate address to sine table
-    ld b, $0
-    ld c, a
-    ld hl, Sine
-    add hl, bc
-    ld a, [hl]
-    ld [rSCX], a
-
-.return:
-    ld hl, HBSineOffset             ; Increment sine hblank offset
-    inc [hl]
-
-    pop hl
-    pop af
     reti
 
 VBlankHandler:
-    push af
-    push hl
-
-    ld a, [VBColorOffset]           ; Increment color vblank offset and
-    dec a                           ; start color hblank offset from vblank offset
-    ld [VBColorOffset], a
-    ld [HBColorOffset], a
-
-    ld a, [VBSineOffset]            ; Increment sine vblank offset and
-    inc a                           ; start sine hblank offset from vblank offset
-    ld [VBSineOffset], a
-    ld [HBSineOffset], a
-
-    pop hl
-    pop af
+    ld a, [VBlankOffset]            ; Increment color vblank offset and
+    dec a                           ; set hblank offset to start from vblank offset
+    ld [VBlankOffset], a
+    ld [HBlankOffset], a
     reti
 
 WaitVBlank:
@@ -153,17 +94,14 @@ WaitVBlank:
 ; a = Number of 16 byte blocks to copy
 DMACopy:
     ld d, a                         ; Save a
-
     ld a, h                         ; Set source
     ld [rHDMA1], a
     ld a, l
     ld [rHDMA2], a
-
     ld a, b                         ; Set target
     ld [rHDMA3], a
     ld a, c
     ld [rHDMA4], a
-
     ld a, d                         ; Start general purpose DMA transfer
     ld [rHDMA5], a
     ret
@@ -195,18 +133,6 @@ Y = Y + 1
 Gradient:
     INCLUDE "gradient.inc"
 
-Sine:
-ANGLE = 0.0
-    REPT 256
-    DB (MUL(32.0, SIN(ANGLE)) + 1.0) >> 16
-ANGLE = ANGLE + 256.0
-    ENDR
-
 SECTION "Variables", WRAM0[$C000]
-Variables:
-HBColorOffset:  DS 1
-VBColorOffset:  DS 1
-VBSineOffset:   DS 1
-HBSineOffset:   DS 1
-ButtonState:    DS 1
-EffectOn:       DS 1
+HBlankOffset:   DS 1
+VBlankOffset:   DS 1
