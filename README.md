@@ -4,6 +4,4 @@
 - Compile with `make`
 - Run *main.gb* with e.g. [Sameboy](https://sameboy.github.io/) or a real device
 
-Button A toggles a wave effect.
-
 ![Demo animation](https://raw.githubusercontent.com/achydenius/gbc-hello-world/main/screenshot.gif)

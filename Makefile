@@ -16,4 +16,4 @@ gradient.inc: create-gradient.py
 	./create-gradient.py > gradient.inc
 
 clean:
-	rm -f main.gb *.o *.2bpp gradient.inc
+	rm -f *.gb *.o *.2bpp gradient.inc
