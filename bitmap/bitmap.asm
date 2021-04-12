@@ -1,8 +1,8 @@
 INCLUDE "../hardware.inc"
 
 LCDCF_ON_BIT    EQU 7
-WIDTH           EQU 8
-HEIGHT          EQU 8
+WIDTH           EQU 16
+HEIGHT          EQU 16
 
 SECTION "Header", ROM0[$100]
     jp Start
@@ -27,8 +27,6 @@ Start:
 
     call InitTilemap
 
-    ld b, b
-
     ld hl, rLCDC                    ; Turn on LCD
     set LCDCF_ON_BIT, [hl]
 
@@ -39,7 +37,41 @@ Start:
     ei                              ; Enable interrupts
 
 Loop:
-    jp Loop
+    call WaitVBlank
+
+    ld b, 33
+    ld c, 9
+    call PutPixel
+    jr Loop
+
+; b = x-coordinate
+; c = y-coordinate
+PutPixel:
+    ld hl, _VRAM                    ; Base address
+
+    ld a, c                         ; Add y offset
+    sla a
+    add a, l
+    ld l, a
+
+    ld a, b                         ; Add x character offset
+    sra a
+    sra a
+    sra a
+    add a, h
+    ld h, a
+
+    ld a, b                         ; Get x pixel mask
+    and a, %00000111
+    ld de, Pixels
+    add a, e
+    ld e, a
+    ld a, [de]
+
+    or a, [hl]
+    ld [hl], a
+
+    ret
 
 ; Wait until beginning of the next vblank
 WaitVBlank:
@@ -84,3 +116,14 @@ InitTilemap:
     jr nz, .col
 
     ret
+
+SECTION "Data", ROM0
+Pixels:
+    DB %10000000
+    DB %01000000
+    DB %00100000
+    DB %00010000
+    DB %00001000
+    DB %00000100
+    DB %00000010
+    DB %00000001
