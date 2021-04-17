@@ -39,11 +39,15 @@ Start:
 Loop:
     call WaitVBlank
 
-    ld b, 33
-    ld c, 9
-    call PutPixel
+    ld b, 9
+    ld c, 10
+    ld d, 75
+    ld e, 11
+    call DrawLine
+    ; call PutPixel
     jr Loop
 
+; Plot a single pixel with color 1
 ; b = x-coordinate
 ; c = y-coordinate
 PutPixel:
@@ -70,6 +74,85 @@ PutPixel:
 
     or a, [hl]
     ld [hl], a
+
+    ret
+
+; Draw a line with color 1
+; b = x0
+; c = y0
+; d = x1
+; e = y1
+DrawLine:
+    ld a, d
+    sub a, b
+    ld [dx], a
+    sra a
+    ld [dx2], a                     ; TODO: Might not need storing to RAM?
+
+    ld a, e
+    sub a, c
+    ld [dy], a
+
+    ld a, b                         ; Get x pixel mask
+    and a, %00000111
+    ld hl, Pixels
+    add a, l
+    ld l, a
+    ld a, [hl]
+    ld d, a                         ; d = Pixel mask
+
+    ld hl, dx2
+    ld a, [dy]
+    sub a, [hl]
+    ld e, a                         ; e = Diff
+
+    ld hl, _VRAM                    ; Base address
+
+    ld a, c                         ; Add y offset
+    sla a
+    add a, l
+    ld l, a
+
+    ld a, b                         ; Add x character offset
+    sra a
+    sra a
+    sra a
+    add a, h
+    ld h, a
+
+    ld a, [dx]
+    ld c, a                         ; c = x counter
+
+.plot:
+    ld a, d
+    or a, [hl]
+    ld [hl], a
+
+    rrc d
+    jr nc, .sameColumn
+
+    inc h                           ; Move to next column
+.sameColumn:
+    ld a, e                         ; 1
+    bit 7, a                        ; 2
+    jr nz, .sameRow                 ; 3/2
+
+    inc l                           ;   1   Move to next row
+    inc l                           ;   1
+    ld a, [dx]                      ;   4
+    ld b, a                         ;   1
+    ld a, e                         ;   1
+    sub a, b                        ;   1
+    ld e, a                         ;   1
+.sameRow:
+    ld a, [dy]                      ; 4
+    ld b, a                         ; 1
+    ld a, e                         ; 1
+    add a, b                        ; 1
+    ld e, a                         ; 1
+
+    dec c                           ; 1
+    jr nz, .plot
 
     ret
 
@@ -127,3 +210,8 @@ Pixels:
     DB %00000100
     DB %00000010
     DB %00000001
+
+SECTION "Variables", WRAM0[$C000]
+dx:     DS 1
+dx2:    DS 1
+dy:     DS 1
