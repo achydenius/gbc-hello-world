@@ -6,7 +6,7 @@ fix: build
 build: bitmap.o
 	rgblink -o bitmap.gb bitmap.o
 
-bitmap.o: bitmap.asm
+bitmap.o: bitmap.asm line.asm
 	rgbasm -o bitmap.o bitmap.asm
 
 clean:
